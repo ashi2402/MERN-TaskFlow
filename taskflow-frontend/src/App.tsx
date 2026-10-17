@@ -34,7 +34,7 @@ function App() {
         setLoading(true);
         setError('');
 
-        const response = await fetch('http://localhost:3000/api/tasks');
+       const response = await fetch('/api/tasks');
 
         if (!response.ok) {
           throw new Error('Failed to fetch tasks');

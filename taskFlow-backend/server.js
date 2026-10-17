@@ -1,13 +1,16 @@
 const express = require('express');
 const cors = require('cors');
-
+const path = require('path');
 const app = express();
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors({
     origin: 'http://localhost:5173'
 }))
+
+
+app.use(express.json());
 
 const tasks = [
   {
@@ -26,8 +29,21 @@ const tasks = [
   }
 ];
 
-app.use(express.json());
+// Serve the production React build.
+const frontendPath = path.join(
+  __dirname,
+  '../taskflow-frontend/dist'
+);
 
+app.use(express.static(frontendPath));
+
+// Send React's index.html for frontend routes,
+// but never use this fallback for API requests.
+app.get(/^(?!\/api(?:\/|$)).*/, (req, res, next) => {
+  res.sendFile(path.join(frontendPath, 'index.html'), err => {
+    if (err) next(err);
+  });
+});
 
 app.get('/api/tasks', (req, res) => {
     res.status(200).json(tasks)
