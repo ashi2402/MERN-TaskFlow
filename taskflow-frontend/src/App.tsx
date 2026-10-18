@@ -34,7 +34,7 @@ function App() {
         setLoading(true);
         setError('');
 
-       const response = await fetch('/api/tasks');
+        const response = await fetch('/api/tasks');
 
         if (!response.ok) {
           throw new Error('Failed to fetch tasks');
@@ -55,20 +55,33 @@ function App() {
   }, []);
 
 
-  function addTask(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
+  
+async function addTask(event: SubmitEvent<HTMLFormElement>) {
+  event.preventDefault();
 
-    const trimmedTitle = title.trim();
+  const trimmedTitle = title.trim();
 
-    if (!trimmedTitle) return;
+  if (!trimmedTitle) return;
 
-    const newTask: Task = {
-      id: Date.now(),
-      title: trimmedTitle,
-      description: description.trim(),
-      priority,
-      status
-    };
+  try {
+    const response = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: trimmedTitle,
+        description: description.trim(),
+        priority,
+        status
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create task');
+    }
+
+    const newTask: Task = await response.json();
 
     setTasks(previousTasks => [...previousTasks, newTask]);
 
@@ -76,7 +89,12 @@ function App() {
     setDescription('');
     setPriority('Medium');
     setStatus('Pending');
+  } catch (error) {
+    console.error('Unable to create task:', error);
+    alert('Unable to create task. Please try again.');
   }
+}
+
 
   function deleteTask(id: number) {
     setTasks(prevTask => prevTask.filter(task => task.id !== id))
@@ -165,40 +183,40 @@ function App() {
         )}
         {!loading && !error && (
 
-        <div className="task-list">
-          {tasks.map(task => (
-            <div className="task-item" key={task.id}>
-              <TaskCard
-                title={task.title}
-                status={task.status}
-                onMarkCompleted={() => markTaskCompleted(task.id)}
-              />
+          <div className="task-list">
+            {tasks.map(task => (
+              <div className="task-item" key={task.id}>
+                <TaskCard
+                  title={task.title}
+                  status={task.status}
+                  onMarkCompleted={() => markTaskCompleted(task.id)}
+                />
 
-              <p className="task-description">
-                {task.description}
-              </p>
+                <p className="task-description">
+                  {task.description}
+                </p>
 
-              <div className="task-meta">
-                <span className="task-badge">
-                  {task.priority}
-                </span>
+                <div className="task-meta">
+                  <span className="task-badge">
+                    {task.priority}
+                  </span>
 
-                <span className="task-badge">
-                  {task.status}
-                </span>
+                  <span className="task-badge">
+                    {task.status}
+                  </span>
+                </div>
+
+                <div className="task-actions">
+                  <button
+                    className="button button-danger"
+                    onClick={() => deleteTask(task.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-
-              <div className="task-actions">
-                <button
-                  className="button button-danger"
-                  onClick={() => deleteTask(task.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
 
       </main>

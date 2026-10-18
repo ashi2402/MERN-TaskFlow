@@ -55,6 +55,28 @@ app.get('/api/health', (req, res) => {
     })
 })
 
+app.post('/api/tasks', (req, res) => {
+    const {title, description, priority, status} = req.body;
+
+    if(!title || !title.trim()){
+        res.status(400).json({
+            message: "Task title is required"
+        })
+    }
+
+    const newTask = {
+        id: Date.now(),
+        title:title,
+        description: description || '',
+        priority:priority || 'Medium',
+        status:status || 'Pending'
+
+    }
+
+    tasks.push(newTask);
+    res.status(201).json(newTask)
+})
+
 app.listen(PORT, () => {
     console.log(`TaskFlow API is running on ${PORT}`)
 })
