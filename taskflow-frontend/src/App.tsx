@@ -55,60 +55,99 @@ function App() {
   }, []);
 
 
-  
-async function addTask(event: SubmitEvent<HTMLFormElement>) {
-  event.preventDefault();
 
-  const trimmedTitle = title.trim();
+  async function addTask(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-  if (!trimmedTitle) return;
+    const trimmedTitle = title.trim();
 
-  try {
-    const response = await fetch('/api/tasks', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        title: trimmedTitle,
-        description: description.trim(),
-        priority,
-        status
-      })
-    });
+    if (!trimmedTitle) return;
 
-    if (!response.ok) {
-      throw new Error('Failed to create task');
+    try {
+      const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: trimmedTitle,
+          description: description.trim(),
+          priority,
+          status
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create task');
+      }
+
+      const newTask: Task = await response.json();
+
+      setTasks(previousTasks => [...previousTasks, newTask]);
+
+      setTitle('');
+      setDescription('');
+      setPriority('Medium');
+      setStatus('Pending');
+    } catch (error) {
+      console.error('Unable to create task:', error);
+      alert('Unable to create task. Please try again.');
+    }
+  }
+
+
+  async function deleteTask(id: number) {
+
+    try {
+      const response = await fetch(`/api/tasks/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete task');
+      }
+
+      setTasks(prevTask =>
+        prevTask.filter(task => task.id !== id)
+      )
+
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Unable to delete task. Please try again.');
     }
 
-    const newTask: Task = await response.json();
-
-    setTasks(previousTasks => [...previousTasks, newTask]);
-
-    setTitle('');
-    setDescription('');
-    setPriority('Medium');
-    setStatus('Pending');
-  } catch (error) {
-    console.error('Unable to create task:', error);
-    alert('Unable to create task. Please try again.');
-  }
-}
-
-
-  function deleteTask(id: number) {
-    setTasks(prevTask => prevTask.filter(task => task.id !== id))
   }
 
-  function markTaskCompleted(id: number) {
-    setTasks(previousTasks =>
-      previousTasks.map(task =>
-        task.id === id
-          ? { ...task, status: 'Completed' }
-          : task
-      )
-    );
+
+  async function markTaskCompleted(id: number) {
+    try {
+      const response = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'Completed'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update task');
+      }
+
+      const updatedTask: Task = await response.json();
+
+      setTasks(previousTasks =>
+        previousTasks.map(task =>
+          task.id === updatedTask.id ? updatedTask : task
+        )
+      );
+    } catch (error) {
+      console.error('Unable to update task:', error);
+      alert('Unable to update task. Please try again.');
+    }
   }
+
 
   return (
     <div>
@@ -209,7 +248,9 @@ async function addTask(event: SubmitEvent<HTMLFormElement>) {
                 <div className="task-actions">
                   <button
                     className="button button-danger"
-                    onClick={() => deleteTask(task.id)}
+                    onClick={() => {
+                      deleteTask(task.id)
+                    }}
                   >
                     Delete
                   </button>
