@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const app = express();
+const mongoose = require('mongoose');
+require('dotenv').config();
+const Task = require('./models/Task');
 
 const PORT = process.env.PORT || 3000;
 
@@ -12,22 +15,6 @@ app.use(cors({
 
 app.use(express.json());
 
-const tasks = [
-    {
-        id: 1,
-        title: 'Fix login bug',
-        description: 'Resolve the login validation issue',
-        priority: 'High',
-        status: 'Pending'
-    },
-    {
-        id: 2,
-        title: 'Build dashboard',
-        description: 'Create the project overview',
-        priority: 'Medium',
-        status: 'In Progress'
-    }
-];
 
 // Serve the production React build.
 const frontendPath = path.join(
@@ -45,8 +32,19 @@ app.get(/^(?!\/api(?:\/|$)).*/, (req, res, next) => {
     });
 });
 
-app.get('/api/tasks', (req, res) => {
-    res.status(200).json(tasks)
+app.get('/api/tasks', async (req, res) => {
+    try{
+        const tasks = await Task.find();
+
+        res.status(200).json(tasks)
+        
+    }catch(error){
+         console.error('Error fetching tasks:', error);
+        res.status(500).json({
+            message: 'Failed to fetch tasks'
+        });
+    }
+
 })
 
 app.get('/api/health', (req, res) => {
@@ -55,76 +53,140 @@ app.get('/api/health', (req, res) => {
     })
 })
 
-app.post('/api/tasks', (req, res) => {
-    const { title, description, priority, status } = req.body;
+app.post('/api/tasks', async (req, res) => {
+    try {
 
-    if (!title || !title.trim()) {
-        res.status(400).json({
-            message: "Task title is required"
-        })
+        const { title, description, priority, status } = req.body;
+    
+        if (!title || !title.trim()) {
+            res.status(400).json({
+                message: "Task title is required"
+            })
+        }
+    
+        const newTask = await Task.create({
+            id: Date.now(),
+            title: title,
+            description: description || '',
+            priority: priority || 'Medium',
+            status: status || 'Pending'
+    
+        });
+    
+        res.status(201).json(newTask)
+
+    }catch(error){
+         console.error('Error creating task:', error);
+
+        if (
+            error.name === 'ValidationError' ||
+            error.code === 11000
+        ) {
+            return res.status(400).json({
+                message: 'Invalid task data or duplicate task ID'
+            });
+        }
+
+        res.status(500).json({
+            message: 'Failed to create task'
+        });
     }
-
-    const newTask = {
-        id: Date.now(),
-        title: title,
-        description: description || '',
-        priority: priority || 'Medium',
-        status: status || 'Pending'
-
-    }
-
-    tasks.push(newTask);
-    res.status(201).json(newTask)
 })
 
-app.patch('/api/tasks/:id', (req, res) => {
-    const taskId = Number(req.params.id);
+app.patch('/api/tasks/:id', async (req, res) => {
 
-    const task = tasks.find(item => item.id === taskId);
+    try {
 
-    if (!task) {
-        return res.status(404).json({
-            message: 'Task not found'
+        const taskId = Number(req.params.id);
+    
+        const { status } = req.body;
+    
+        if(!Number.isSafeInteger(taskId)){
+            return res.status(400).kson({
+                message: 'Invalid task ID'
+            })
+        }
+    
+        if (!['Pending', 'In Progress', 'Completed'].includes(status)) {
+            return res.status(400).json({
+                message: 'Invalid task status'
+            });
+        }
+        
+        const updatedTask = await Task.findOneAndUpdate(
+            {id: taskId},
+            {$set: {status}},
+            {returnDocument: true, runValidators: true}
+        );
+    
+       if (!updatedTask) {
+    return res.status(404).json({
+        message: 'Task not found'
+    });
+}
+
+return res.status(200).json(updatedTask);
+    }catch(error){
+        console.error('Error updating task:', error);
+        res.status(500).json({
+            message: 'Failed to update task'
         });
+    
     }
-
-    const { status } = req.body;
-
-    if (!['Pending', 'In Progress', 'Completed'].includes(status)) {
-        return res.status(400).json({
-            message: 'Invalid task status'
-        });
-    }
-
-    task.status = status;
-
-    res.status(200).json(task);
 });
 
-app.delete('/api/tasks/:id', (req, res) => {
-    const taskId = Number(req.params.id);
+app.delete('/api/tasks/:id', async (req, res) => {
 
-    const taskIndex = tasks.findIndex(
-        task => task.id === taskId
-    );
+    try {
 
+        const taskId = Number(req.params.id);
+    
+         if(!Number.isSafeInteger(taskId)){
+                return res.status(400).json({
+                    message: 'Invalid task ID'
+                })
+            }
+    
+    
+        const deletedTask = await Task.findOneAndDelete({
+            id: taskId
+        });
+    
+         if (!deletedTask) {
+                return res.status(404).json({
+                    message: 'Task not found'
+                });
+            }
+    
+        res.status(200).json({
+            message: 'Task deleted successfully',
+            task: deletedTask
+        });
+    }catch(error){
+         console.error('Error deleting task:', error);
 
-
-    if (taskIndex === -1) {
-        return res.status(404).json({
-            message: 'Task not found'
+        return res.status(500).json({
+            message: 'Failed to delete task'
         });
     }
 
-    const deletedTask = tasks.splice(taskIndex, 1)[0]
-    res.status(200).json({
-        message: 'Task deleted successfully',
-        task: deletedTask
-    });
-
 })
 
+async function startServer(){
+    try {
+        await mongoose.connect(process.env.MONGO_URI);
 
-app.listen(PORT, () => {
-    console.log(`TaskFlow API is running on ${PORT}`)
-})
+        console.log('MongoDB connected succesfully');
+
+        app.listen(PORT, () => {
+            console.log(`TaskFlow API is running on ${PORT}`)
+        })
+
+    }catch(error){
+        console.error('Failed to connect to MongoDB:', error.message);
+        process.exit(1);
+    }
+}
+
+startServer();
+
